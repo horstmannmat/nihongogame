@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useI18n } from "../i18n";
 import type { Kana } from "../types";
 import StrokeSvg from "./StrokeSvg";
 
@@ -22,6 +23,7 @@ function splitKanaGlyph(glyph: string) {
 export { splitKanaGlyph };
 
 export default function KanaRound({ kana, countdown, revealSvgs, secondaryRevealAtMs, isRevealed }: KanaRoundProps) {
+  const { t } = useI18n();
   const kanaParts = splitKanaGlyph(kana.kana);
   const [showSecondaryStroke, setShowSecondaryStroke] = useState(kanaParts.length < 2);
 
@@ -40,7 +42,7 @@ export default function KanaRound({ kana, countdown, revealSvgs, secondaryReveal
     <section className="round-card" aria-live="polite">
       <div className="round-copy">
         <div className="romaji">{kana.romaji}</div>
-        <div className="script-label">({kana.type})</div>
+        <div className="script-label">({t(`script.${kana.type}`)})</div>
       </div>
       <div className="stroke-stage">
         {isRevealed ? (
@@ -51,7 +53,7 @@ export default function KanaRound({ kana, countdown, revealSvgs, secondaryReveal
             )}
           </div>
         ) : (
-          <div className="stage-timer"><span className="timer-title">Reveal in</span><span className="timer-value">{countdown}</span></div>
+          <div className="stage-timer"><span className="timer-title">{t("timer.revealIn")}</span><span className="timer-value">{countdown}</span></div>
         )}
       </div>
     </section>

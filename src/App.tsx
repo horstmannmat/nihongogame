@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import KanaRound, { splitKanaGlyph } from "./components/KanaRound";
 import KanjiRound from "./components/KanjiRound";
+import LanguageSelector from "./components/LanguageSelector";
 import SetupCard from "./components/SetupCard";
 import { Hard, HIRAGANA, KATAKANA, N1, N2, N3, N4, N5 } from "./constants";
+import { useI18n } from "./i18n";
 import type { Kana, KanaType, Kanji, KanjiLevel } from "./types";
 
 type Phase = "setup" | "countdown" | "reveal" | "finished";
@@ -36,6 +38,21 @@ function getKanaRevealDuration(strokeCount: number) {
   return (0.12 + Math.max(strokeCount - 1, 0) * 0.75 + 1.4) * 1000;
 }
 
+function getKanjiRevealDuration(svgText: string) {
+  const delays: number[] = [];
+  const delayPattern = /--d:([0-9.]+)s/g;
+  let delayMatch = delayPattern.exec(svgText);
+  while (delayMatch) {
+    delays.push(Number(delayMatch[1]));
+    delayMatch = delayPattern.exec(svgText);
+  }
+  const durationMatch = svgText.match(/--t:([0-9.]+)s/);
+  const strokeDurationSec = durationMatch ? Number(durationMatch[1]) : 0.8;
+  const lastDelaySec = delays.length > 0 ? Math.max(...delays) : getStrokeCount(svgText);
+  const holdAfterMs = 1500;
+  return (lastDelaySec + strokeDurationSec) * 1000 + holdAfterMs;
+}
+
 function getRoundSvgUrls(round: Round) {
   if (isKana(round)) {
     return splitKanaGlyph(round.kana).map((part) => `/kanastrokes-dist/${round.type}/${encodeURIComponent(part)}.svg`);
@@ -45,6 +62,7 @@ function getRoundSvgUrls(round: Round) {
 }
 
 export default function Game() {
+  const { t } = useI18n();
   const [selectedScripts, setSelectedScripts] = useState<ScriptSelection>({ hiragana: true, katakana: true });
   const [selectedKanjiLevels, setSelectedKanjiLevels] = useState<KanjiSelection>(EMPTY_KANJI_SELECTION);
   const [phase, setPhase] = useState<Phase>("setup");
@@ -76,28 +94,12 @@ export default function Game() {
     const round = currentRound;
     const controller = new AbortController();
     const urls = getRoundSvgUrls(round);
+    let timeoutId: number | undefined;
+    let cancelled = false;
     setRevealSvgs([]);
     setSecondaryRevealAtMs(null);
 
-    async function loadSvg() {
-      try {
-        const svgs = await Promise.all(urls.map(async (url) => {
-          const response = await fetch(url, { signal: controller.signal });
-          if (!response.ok) throw new Error("SVG not found");
-          return response.text();
-        }));
-        setRevealSvgs(svgs);
-        if (isKana(round) && svgs.length > 1) {
-          setSecondaryRevealAtMs(getKanaRevealDuration(getStrokeCount(svgs[0] ?? "")));
-        }
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) setRevealSvgs([]);
-      }
-    }
-
-    loadSvg();
-    const revealDuration = isKana(round) ? (round.kana.length > 1 ? 8000 : 4800) : 8000;
-    const timeoutId = window.setTimeout(() => {
+    function advanceRound() {
       if (remainingRounds.length === 0) {
         setPhase("finished");
         return;
@@ -109,11 +111,44 @@ export default function Game() {
       setRevealSvgs([]);
       setSecondaryRevealAtMs(null);
       setPhase("countdown");
-    }, revealDuration);
+    }
+
+    function scheduleAdvance(revealDuration: number) {
+      if (cancelled) return;
+      timeoutId = window.setTimeout(advanceRound, revealDuration);
+    }
+
+    async function loadSvg() {
+      try {
+        const svgs = await Promise.all(urls.map(async (url) => {
+          const response = await fetch(url, { signal: controller.signal });
+          if (!response.ok) throw new Error("SVG not found");
+          return response.text();
+        }));
+        if (cancelled) return;
+        setRevealSvgs(svgs);
+        if (isKana(round) && svgs.length > 1) {
+          setSecondaryRevealAtMs(getKanaRevealDuration(getStrokeCount(svgs[0] ?? "")));
+        }
+
+        const revealDuration = isKana(round)
+          ? (round.kana.length > 1 ? 8000 : 4800)
+          : getKanjiRevealDuration(svgs[0] ?? "");
+        scheduleAdvance(revealDuration);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setRevealSvgs([]);
+          scheduleAdvance(1500);
+        }
+      }
+    }
+
+    loadSvg();
 
     return () => {
+      cancelled = true;
       controller.abort();
-      window.clearTimeout(timeoutId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
   }, [currentRound, phase, remainingRounds]);
 
@@ -148,7 +183,19 @@ export default function Game() {
   }
 
   if (phase === "finished") {
-    return <main className="app-shell"><section className="setup-card"><p className="eyebrow">Japanese strokes</p><h1>Round complete</h1><p className="setup-copy">The current pool is empty. Restart with the same selection or adjust it first.</p><button className="primary-button" type="button" onClick={resetGame}>Back to setup</button></section></main>;
+    return (
+      <main className="app-shell">
+        <section className="setup-card">
+          <div className="card-header">
+            <p className="eyebrow">{t("eyebrow")}</p>
+            <LanguageSelector />
+          </div>
+          <h1>{t("finished.title")}</h1>
+          <p className="setup-copy">{t("finished.copy")}</p>
+          <button className="primary-button" type="button" onClick={resetGame}>{t("finished.backToSetup")}</button>
+        </section>
+      </main>
+    );
   }
 
   return (
