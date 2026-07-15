@@ -1,6 +1,39 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-export type Language = 'en' | 'ja' | 'vi' | 'ne' | 'haw' | 'pt-BR';
+export type Language = 'en' | 'ja' | 'vi' | 'ne' | 'haw' | 'eu' | 'nl' | 'de' | 'pt-BR';
+
+const DEFAULT_LANGUAGE: Language = 'en';
+const LANGUAGE_BY_BASE_CODE: Record<string, Language> = {
+  en: 'en',
+  ja: 'ja',
+  vi: 'vi',
+  ne: 'ne',
+  haw: 'haw',
+  eu: 'eu',
+  nl: 'nl',
+  de: 'de',
+  pt: 'pt-BR',
+};
+
+function detectBrowserLanguage(): Language {
+  if (typeof navigator === 'undefined') {
+    return DEFAULT_LANGUAGE;
+  }
+
+  const preferredLanguages = navigator.languages.length > 0
+    ? navigator.languages
+    : [navigator.language];
+
+  for (const preferredLanguage of preferredLanguages) {
+    const baseCode = preferredLanguage.toLowerCase().split('-')[0];
+    const supportedLanguage = LANGUAGE_BY_BASE_CODE[baseCode];
+    if (supportedLanguage) {
+      return supportedLanguage;
+    }
+  }
+
+  return DEFAULT_LANGUAGE;
+}
 
 type I18nContextValue = {
   language: Language;
@@ -16,7 +49,7 @@ type I18nProviderProps = {
 };
 
 export function I18nProvider({ basePath, children }: I18nProviderProps) {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>(detectBrowserLanguage);
   const [translations, setTranslations] = useState<Record<string, string> | null>(null);
 
   useEffect(() => {
