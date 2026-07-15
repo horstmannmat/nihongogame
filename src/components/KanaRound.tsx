@@ -49,7 +49,11 @@ export default function KanaRound({ kana, countdown, revealSvgs, secondaryReveal
           <div className={`stroke-art-grid stroke-art-grid-${kanaParts.length}`}>
             {revealSvgs[0] ? <StrokeSvg key={`${kana.romaji}-${kana.type}-0`} svgText={revealSvgs[0]} className="stroke-art stroke-art--primary" /> : null}
             {kanaParts.length < 2 || !revealSvgs[1] ? null : (
-              <StrokeSvg key={`${kana.romaji}-${kana.type}-1`} svgText={revealSvgs[1]} className={`stroke-art stroke-art--secondary ${showSecondaryStroke ? "" : "stroke-art--placeholder-svg"}`} />
+              <StrokeSvg
+                key={`${kana.romaji}-${kana.type}-1-${showSecondaryStroke ? "play" : "hold"}`}
+                svgText={revealSvgs[1]}
+                className={`stroke-art stroke-art--secondary ${showSecondaryStroke ? "" : "stroke-art--placeholder-svg"}`}
+              />
             )}
           </div>
         ) : (
