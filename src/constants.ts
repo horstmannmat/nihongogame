@@ -384,7 +384,7 @@ export const Hard: Kanji[] = [
     {
         kanji: '薔',
         meaning: 'rose',
-        hiragana: 'しょう',
+        hiragana: 'ばら',
         level: 'Hard',
     },
     {
