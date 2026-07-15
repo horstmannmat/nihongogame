@@ -390,7 +390,7 @@ export const Hard: Kanji[] = [
     {
         kanji: '謄',
         meaning: 'copy, transcript',
-        hiragana: 'とう',
+        hiragana: 'とうほん',
         level: 'Hard',
     },
 ];
