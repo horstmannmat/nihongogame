@@ -19,8 +19,14 @@ function isKana(round: Round): round is Kana {
   return "type" in round;
 }
 
+function pickRandomIndex(length: number) {
+  const buffer = new Uint32Array(1);
+  crypto.getRandomValues(buffer);
+  return buffer[0] % length;
+}
+
 function pickNextRound<T>(pool: T[]) {
-  const index = Math.floor(Math.random() * pool.length);
+  const index = pickRandomIndex(pool.length);
   return { round: pool[index], nextPool: [...pool.slice(0, index), ...pool.slice(index + 1)] };
 }
 

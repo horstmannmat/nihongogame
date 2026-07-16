@@ -36,11 +36,10 @@ function scaleKanjiSvgToDuration(svgText: string, targetSec: number) {
   }
 
   const scale = targetSec / totalSec;
-  return svgText
-    .replace(/--d:([0-9.]+)s/g, (_, value: string) => `--d:${(Number(value) * scale).toFixed(3)}s`)
-    .replace(/--t:([0-9.]+)s/g, (_, value: string) => `--t:${(Number(value) * scale).toFixed(3)}s`);
+  const scaleDelay = (_: string, value: string) => `--d:${(Number(value) * scale).toFixed(3)}s`;
+  const scaleDuration = (_: string, value: string) => `--t:${(Number(value) * scale).toFixed(3)}s`;
+  return svgText.replace(/--d:([0-9.]+)s/g, scaleDelay).replace(/--t:([0-9.]+)s/g, scaleDuration);
 }
-
 
 function splitKanjiGlyph(glyph: string) {
   return Array.from(glyph);
@@ -57,6 +56,38 @@ async function fetchKanjiSvg(part: string, level: string, publicBase: string, si
   }
   if (!response.ok) throw new Error("SVG not found");
   return response.text();
+}
+
+async function loadPreparedSvgs(kanji: Kanji, publicBase: string, signal: AbortSignal) {
+  const parts = splitKanjiGlyph(kanji.kanji);
+  const svgs = await Promise.all(parts.map((part) => fetchKanjiSvg(part, kanji.level, publicBase, signal)));
+  return svgs.map((svg) => scaleKanjiSvgToDuration(svg, REVEAL_SEC_PER_GLYPH));
+}
+
+function scheduleGlyphAdvances(glyphCount: number, onAdvance: (index: number) => void) {
+  const timeoutIds: number[] = [];
+  for (let index = 1; index < glyphCount; index += 1) {
+    timeoutIds.push(window.setTimeout(() => onAdvance(index), REVEAL_MS_PER_GLYPH * index));
+  }
+  return timeoutIds;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+type KanjiGlyphProps = {
+  svgText: string;
+  isPlaying: boolean;
+};
+
+function KanjiGlyph({ svgText, isPlaying }: Readonly<KanjiGlyphProps>) {
+  return (
+    <StrokeSvg
+      svgText={svgText}
+      className={`stroke-art stroke-art--kanji ${isPlaying ? "" : "stroke-art--placeholder-svg"}`}
+    />
+  );
 }
 
 export default function KanjiRound({ kanji, publicBase, progress, onComplete }: Readonly<KanjiRoundProps>) {
@@ -81,45 +112,28 @@ export default function KanjiRound({ kanji, publicBase, progress, onComplete }: 
 
     const controller = new AbortController();
     let advanceTimeoutId: number | undefined;
-    const glyphTimeoutIds: number[] = [];
+    let glyphTimeoutIds: number[] = [];
     let cancelled = false;
 
     setRevealSvgs([]);
     setActiveStrokeIndex(0);
 
-    async function loadSvg() {
-      try {
-        const svgs = await Promise.all(
-          splitKanjiGlyph(kanji.kanji).map((part) =>
-            fetchKanjiSvg(part, kanji.level, publicBase, controller.signal),
-          ),
-        );
+    loadPreparedSvgs(kanji, publicBase, controller.signal)
+      .then((preparedSvgs) => {
         if (cancelled) return;
 
-        const preparedSvgs = svgs.map((svg) => scaleKanjiSvgToDuration(svg, REVEAL_SEC_PER_GLYPH));
         setRevealSvgs(preparedSvgs);
-
-        preparedSvgs.slice(1).forEach((_, index) => {
-          const timeoutId = window.setTimeout(
-            () => setActiveStrokeIndex(index + 1),
-            REVEAL_MS_PER_GLYPH * (index + 1),
-          );
-          glyphTimeoutIds.push(timeoutId);
-        });
-
+        glyphTimeoutIds = scheduleGlyphAdvances(preparedSvgs.length, setActiveStrokeIndex);
         advanceTimeoutId = window.setTimeout(
           onComplete,
           preparedSvgs.length * REVEAL_MS_PER_GLYPH + HOLD_AFTER_REVEAL_MS,
         );
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setRevealSvgs([]);
-          advanceTimeoutId = window.setTimeout(onComplete, 1500);
-        }
-      }
-    }
-
-    loadSvg();
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error)) return;
+        setRevealSvgs([]);
+        advanceTimeoutId = window.setTimeout(onComplete, 1500);
+      });
 
     return () => {
       cancelled = true;
@@ -143,18 +157,14 @@ export default function KanjiRound({ kanji, publicBase, progress, onComplete }: 
           <div className="stroke-art-grid stroke-art-grid--kanji">
             {kanjiParts.map((part, index) => {
               const svgText = revealSvgs[index];
-              if (!svgText) {
-                return null;
-              }
-
-              // Later glyphs stay as a grey outline (placeholder) until their turn,
-              // then remount via the key so iOS restarts the stroke animation.
+              if (!svgText) return null;
+              // Later glyphs stay grey until their turn; remount via key so iOS restarts animation.
               const isPlaying = index <= activeStrokeIndex;
               return (
-                <StrokeSvg
+                <KanjiGlyph
                   key={`${kanji.kanji}-${part}-${index}-${isPlaying ? "play" : "hold"}`}
                   svgText={svgText}
-                  className={`stroke-art stroke-art--kanji ${isPlaying ? "" : "stroke-art--placeholder-svg"}`}
+                  isPlaying={isPlaying}
                 />
               );
             })}

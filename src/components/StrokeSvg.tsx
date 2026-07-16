@@ -5,12 +5,17 @@ type StrokeSvgProps = {
   className: string;
 };
 
+function forceReflow(element: HTMLElement) {
+  // Reading geometry flushes pending style so animation restart takes effect.
+  return element.getBoundingClientRect();
+}
+
 function restartStrokeAnimations(container: HTMLDivElement) {
   const strokes = container.querySelectorAll('g[data-strokesvg="strokes"] > *, path[clip-path]');
   strokes.forEach((node) => {
     const element = node as HTMLElement;
     element.style.animation = "none";
-    void element.getBoundingClientRect();
+    forceReflow(element);
     element.style.removeProperty("animation");
   });
 }
