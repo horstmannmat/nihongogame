@@ -1,27 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
-import KanaRound, { splitKanaGlyph } from "./components/KanaRound";
-import KanjiRound from "./components/KanjiRound";
-import LanguageSelector from "./components/LanguageSelector";
-import SetupCard from "./components/SetupCard";
+import { KanaRound, KanjiRound, LanguageSelector, SetupCard } from "./components";
 import { Hard, HIRAGANA, KATAKANA, N1, N2, N3, N4, N5 } from "./constants";
 import { useI18n } from "./i18n";
-import type { Kana, KanaType, Kanji, KanjiLevel } from "./types";
+import type { Kana, KanaType } from "./types/Kana";
+import type { Kanji, KanjiLevel } from "./types/Kanji";
 
-type Phase = "setup" | "countdown" | "reveal" | "finished";
+type Phase = "setup" | "playing" | "finished";
 type ScriptSelection = Record<KanaType, boolean>;
 type KanjiSelection = Record<KanjiLevel, boolean>;
 type Round = Kana | Kanji;
 
 const EMPTY_KANA_SELECTION: ScriptSelection = { hiragana: false, katakana: false };
 const EMPTY_KANJI_SELECTION: KanjiSelection = { N5: false, N4: false, N3: false, N2: false, N1: false, Hard: false };
+const NIHONGO_PUBLIC_BASE = "";
 
 function isKana(round: Round): round is Kana {
   return "type" in round;
-}
-
-function getCountdownDuration(round: Round) {
-  return isKana(round) ? 3 : 8;
 }
 
 function pickNextRound<T>(pool: T[]) {
@@ -29,48 +24,16 @@ function pickNextRound<T>(pool: T[]) {
   return { round: pool[index], nextPool: [...pool.slice(0, index), ...pool.slice(index + 1)] };
 }
 
-function getStrokeCount(svgText: string) {
-  const document = new DOMParser().parseFromString(svgText, "image/svg+xml");
-  return document.querySelectorAll('g[data-strokesvg="strokes"] > *, path[clip-path]').length;
-}
-
-function getKanaRevealDuration(strokeCount: number) {
-  return (0.12 + Math.max(strokeCount - 1, 0) * 0.75 + 1.4) * 1000;
-}
-
-function getKanjiRevealDuration(svgText: string) {
-  const delays: number[] = [];
-  const delayPattern = /--d:([0-9.]+)s/g;
-  let delayMatch = delayPattern.exec(svgText);
-  while (delayMatch) {
-    delays.push(Number(delayMatch[1]));
-    delayMatch = delayPattern.exec(svgText);
-  }
-  const durationMatch = svgText.match(/--t:([0-9.]+)s/);
-  const strokeDurationSec = durationMatch ? Number(durationMatch[1]) : 0.8;
-  const lastDelaySec = delays.length > 0 ? Math.max(...delays) : getStrokeCount(svgText);
-  const holdAfterMs = 1500;
-  return (lastDelaySec + strokeDurationSec) * 1000 + holdAfterMs;
-}
-
-function getRoundSvgUrls(round: Round) {
-  if (isKana(round)) {
-    return splitKanaGlyph(round.kana).map((part) => `/kanastrokes-dist/${round.type}/${encodeURIComponent(part)}.svg`);
-  }
-
-  return [`/kanjistrokes-dist/${round.level}/${round.kanji.codePointAt(0)}.svg`];
-}
-
 export default function Game() {
   const { t } = useI18n();
-  const [selectedScripts, setSelectedScripts] = useState<ScriptSelection>({ hiragana: true, katakana: true });
+  const [selectedScripts, setSelectedScripts] = useState<ScriptSelection>(EMPTY_KANA_SELECTION);
   const [selectedKanjiLevels, setSelectedKanjiLevels] = useState<KanjiSelection>(EMPTY_KANJI_SELECTION);
   const [phase, setPhase] = useState<Phase>("setup");
-  const [countdown, setCountdown] = useState(3);
   const [remainingRounds, setRemainingRounds] = useState<Round[]>([]);
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
-  const [revealSvgs, setRevealSvgs] = useState<string[]>([]);
-  const [secondaryRevealAtMs, setSecondaryRevealAtMs] = useState<number | null>(null);
+  const [totalRounds, setTotalRounds] = useState(0);
+  const remainingRoundsRef = useRef(remainingRounds);
+  remainingRoundsRef.current = remainingRounds;
   const allKanas = useMemo(() => [...HIRAGANA, ...KATAKANA], []);
   const allKanjis = useMemo(() => [...N5, ...N4, ...N3, ...N2, ...N1, ...Hard], []);
   const availableKanas = useMemo(() => allKanas.filter((kana) => selectedScripts[kana.type]), [allKanas, selectedScripts]);
@@ -78,79 +41,16 @@ export default function Game() {
   const availableRounds = useMemo<Round[]>(() => [...availableKanas, ...availableKanjis], [availableKanas, availableKanjis]);
   const canStart = phase === "setup" && availableRounds.length > 0;
 
-  useEffect(() => {
-    if (phase !== "countdown") return;
-    if (countdown === 0) {
-      setPhase("reveal");
+  const advanceRound = useCallback(() => {
+    const remaining = remainingRoundsRef.current;
+    if (remaining.length === 0) {
+      setPhase("finished");
       return;
     }
-    const timeoutId = window.setTimeout(() => setCountdown((value) => value - 1), 1000);
-    return () => window.clearTimeout(timeoutId);
-  }, [countdown, phase]);
-
-  useEffect(() => {
-    if (phase !== "reveal" || !currentRound) return;
-
-    const round = currentRound;
-    const controller = new AbortController();
-    const urls = getRoundSvgUrls(round);
-    let timeoutId: number | undefined;
-    let cancelled = false;
-    setRevealSvgs([]);
-    setSecondaryRevealAtMs(null);
-
-    function advanceRound() {
-      if (remainingRounds.length === 0) {
-        setPhase("finished");
-        return;
-      }
-      const next = pickNextRound(remainingRounds);
-      setRemainingRounds(next.nextPool);
-      setCurrentRound(next.round);
-      setCountdown(getCountdownDuration(next.round));
-      setRevealSvgs([]);
-      setSecondaryRevealAtMs(null);
-      setPhase("countdown");
-    }
-
-    function scheduleAdvance(revealDuration: number) {
-      if (cancelled) return;
-      timeoutId = window.setTimeout(advanceRound, revealDuration);
-    }
-
-    async function loadSvg() {
-      try {
-        const svgs = await Promise.all(urls.map(async (url) => {
-          const response = await fetch(url, { signal: controller.signal });
-          if (!response.ok) throw new Error("SVG not found");
-          return response.text();
-        }));
-        if (cancelled) return;
-        setRevealSvgs(svgs);
-        if (isKana(round) && svgs.length > 1) {
-          setSecondaryRevealAtMs(getKanaRevealDuration(getStrokeCount(svgs[0] ?? "")));
-        }
-
-        const revealDuration = isKana(round)
-          ? (round.kana.length > 1 ? 8000 : 4800)
-          : getKanjiRevealDuration(svgs[0] ?? "");
-        scheduleAdvance(revealDuration);
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setRevealSvgs([]);
-          scheduleAdvance(1500);
-        }
-      }
-    }
-
-    loadSvg();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-    };
-  }, [currentRound, phase, remainingRounds]);
+    const next = pickNextRound(remaining);
+    setRemainingRounds(next.nextPool);
+    setCurrentRound(next.round);
+  }, []);
 
   function toggleScript(script: KanaType) {
     setSelectedScripts((current) => ({ ...current, [script]: !current[script] }));
@@ -165,43 +65,75 @@ export default function Game() {
   function startGame() {
     if (!canStart) return;
     const next = pickNextRound(availableRounds);
+    setTotalRounds(availableRounds.length);
     setRemainingRounds(next.nextPool);
     setCurrentRound(next.round);
-    setCountdown(getCountdownDuration(next.round));
-    setRevealSvgs([]);
-    setSecondaryRevealAtMs(null);
-    setPhase("countdown");
+    setPhase("playing");
   }
 
   function resetGame() {
     setRemainingRounds([]);
     setCurrentRound(null);
-    setRevealSvgs([]);
-    setSecondaryRevealAtMs(null);
-    setCountdown(3);
+    setTotalRounds(0);
     setPhase("setup");
   }
 
   if (phase === "finished") {
     return (
       <main className="app-shell">
-        <section className="setup-card">
+        <section className="setup-card setup-card--finished">
           <div className="card-header">
             <p className="eyebrow">{t("eyebrow")}</p>
             <LanguageSelector />
           </div>
-          <h1>{t("finished.title")}</h1>
-          <p className="setup-copy">{t("finished.copy")}</p>
-          <button className="primary-button" type="button" onClick={resetGame}>{t("finished.backToSetup")}</button>
+          <div className="finished-body">
+            <h1>{t("finished.title")}</h1>
+            <p className="setup-copy">{t("finished.copy")}</p>
+            <button className="primary-button" type="button" onClick={resetGame}>{t("finished.backToSetup")}</button>
+          </div>
         </section>
       </main>
     );
   }
 
+  let activeRound = null;
+  if (currentRound && phase === "playing") {
+    const progress = {
+      current: totalRounds - remainingRounds.length,
+      total: totalRounds,
+    };
+    activeRound = isKana(currentRound) ? (
+      <KanaRound
+        key={`${currentRound.romaji}-${currentRound.type}`}
+        kana={currentRound}
+        publicBase={NIHONGO_PUBLIC_BASE}
+        progress={progress}
+        onComplete={advanceRound}
+      />
+    ) : (
+      <KanjiRound
+        key={`${currentRound.kanji}-${currentRound.level}`}
+        kanji={currentRound}
+        publicBase={NIHONGO_PUBLIC_BASE}
+        progress={progress}
+        onComplete={advanceRound}
+      />
+    );
+  }
+
   return (
     <main className="app-shell">
-      {phase === "setup" ? <SetupCard selectedScripts={selectedScripts} selectedKanjiLevels={selectedKanjiLevels} canStart={canStart} onToggleScript={toggleScript} onToggleKanjiLevel={toggleKanjiLevel} onStart={startGame} /> : null}
-      {currentRound && phase !== "setup" ? isKana(currentRound) ? <KanaRound kana={currentRound} countdown={countdown} revealSvgs={revealSvgs} secondaryRevealAtMs={secondaryRevealAtMs} isRevealed={phase === "reveal"} /> : <KanjiRound kanji={currentRound} countdown={countdown} svgText={revealSvgs[0] ?? ""} isRevealed={phase === "reveal"} /> : null}
+      {phase === "setup" ? (
+        <SetupCard
+          selectedScripts={selectedScripts}
+          selectedKanjiLevels={selectedKanjiLevels}
+          canStart={canStart}
+          onToggleScript={toggleScript}
+          onToggleKanjiLevel={toggleKanjiLevel}
+          onStart={startGame}
+        />
+      ) : null}
+      {activeRound}
     </main>
   );
 }

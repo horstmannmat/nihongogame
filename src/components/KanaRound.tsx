@@ -1,45 +1,117 @@
 import { useEffect, useState } from "react";
 
 import { useI18n } from "../i18n";
-import type { Kana } from "../types";
+import type { Kana } from "../types/Kana";
 import StrokeSvg from "./StrokeSvg";
 
 type KanaRoundProps = {
   kana: Kana;
-  countdown: number;
-  revealSvgs: string[];
-  secondaryRevealAtMs: number | null;
-  isRevealed: boolean;
+  publicBase: string;
+  progress: { current: number; total: number };
+  onComplete: () => void;
 };
+
+const COUNTDOWN_SECONDS = 3;
+const HOLD_AFTER_REVEAL_MS = 1000;
+
 
 function splitKanaGlyph(glyph: string) {
   if (glyph.length !== 2) {
     return [glyph];
   }
 
-  return new Set(["ゃ", "ゅ", "ょ", "ャ", "ュ", "ョ"]).has(glyph[1]) ? [glyph[0], glyph[1]] : [glyph];
+  return new Set(['ゃ', 'ゅ', 'ょ', 'ャ', 'ュ', 'ョ']).has(glyph[1]) ? [glyph[0], glyph[1]] : [glyph];
 }
 
-export { splitKanaGlyph };
+function getStrokeCount(svgText: string) {
+  const document = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  return document.querySelectorAll('g[data-strokesvg="strokes"] > *, path[clip-path]').length;
+}
 
-export default function KanaRound({ kana, countdown, revealSvgs, secondaryRevealAtMs, isRevealed }: KanaRoundProps) {
+function getKanaRevealDuration(strokeCount: number) {
+  return (0.12 + Math.max(strokeCount - 1, 0) * 0.75 + 1.4) * 1000;
+}
+
+function getRevealDurationMs(kana: Kana) {
+  const strokeMs = kana.kana.length > 1 ? 8000 : 4800;
+  return strokeMs + HOLD_AFTER_REVEAL_MS;
+}
+
+function getSvgUrls(kana: Kana, publicBase: string) {
+  return splitKanaGlyph(kana.kana).map(
+    (part) => `${publicBase}/kanastrokes-dist/${kana.type}/${encodeURIComponent(part)}.svg`,
+  );
+}
+
+export default function KanaRound({ kana, publicBase, progress, onComplete }: Readonly<KanaRoundProps>) {
   const { t } = useI18n();
   const kanaParts = splitKanaGlyph(kana.kana);
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  const [revealSvgs, setRevealSvgs] = useState<string[]>([]);
   const [showSecondaryStroke, setShowSecondaryStroke] = useState(kanaParts.length < 2);
+  const isRevealed = countdown === 0;
 
   useEffect(() => {
-    setShowSecondaryStroke(kanaParts.length < 2);
+    if (isRevealed) return;
+    const timeoutId = window.setTimeout(() => setCountdown((value) => value - 1), 1000);
+    return () => window.clearTimeout(timeoutId);
+  }, [countdown, isRevealed]);
 
-    if (kanaParts.length < 2 || secondaryRevealAtMs == null) {
+  useEffect(() => {
+    if (!isRevealed) {
       return;
     }
 
-    const timeoutId = window.setTimeout(() => setShowSecondaryStroke(true), secondaryRevealAtMs);
-    return () => window.clearTimeout(timeoutId);
-  }, [kanaParts.length, secondaryRevealAtMs, kana.romaji, kana.type, isRevealed]);
+    const controller = new AbortController();
+    let advanceTimeoutId: number | undefined;
+    let secondaryTimeoutId: number | undefined;
+    let cancelled = false;
+
+    setRevealSvgs([]);
+    setShowSecondaryStroke(kanaParts.length < 2);
+
+    async function loadSvg() {
+      try {
+        const svgs = await Promise.all(
+          getSvgUrls(kana, publicBase).map(async (url) => {
+            const response = await fetch(url, { signal: controller.signal });
+            if (!response.ok) throw new Error("SVG not found");
+            return response.text();
+          }),
+        );
+        if (cancelled) return;
+
+        setRevealSvgs(svgs);
+
+        if (svgs.length > 1) {
+          const secondaryRevealAtMs = getKanaRevealDuration(getStrokeCount(svgs[0] ?? ""));
+          secondaryTimeoutId = window.setTimeout(() => setShowSecondaryStroke(true), secondaryRevealAtMs);
+        }
+
+        advanceTimeoutId = window.setTimeout(onComplete, getRevealDurationMs(kana));
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setRevealSvgs([]);
+          advanceTimeoutId = window.setTimeout(onComplete, 1500);
+        }
+      }
+    }
+
+    loadSvg();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (advanceTimeoutId !== undefined) window.clearTimeout(advanceTimeoutId);
+      if (secondaryTimeoutId !== undefined) window.clearTimeout(secondaryTimeoutId);
+    };
+  }, [isRevealed, kana, kanaParts.length, onComplete, publicBase]);
 
   return (
     <section className="round-card" aria-live="polite">
+      <div className="round-progress" aria-label={`${progress.current} of ${progress.total}`}>
+        {progress.current}/{progress.total}
+      </div>
       <div className="round-copy">
         <div className="romaji">{kana.romaji}</div>
         <div className="script-label">({t(`script.${kana.type}`)})</div>

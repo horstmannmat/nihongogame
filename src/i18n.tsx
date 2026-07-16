@@ -49,7 +49,7 @@ type I18nProviderProps = {
   children: ReactNode;
 };
 
-export function I18nProvider({ basePath, children }: I18nProviderProps) {
+export function I18nProvider({ basePath, children }: Readonly<I18nProviderProps>) {
   const [language, setLanguage] = useState<Language>(detectBrowserLanguage);
   const [translations, setTranslations] = useState<Record<string, string> | null>(null);
 

@@ -1,6 +1,8 @@
 import { useState } from "react";
 
-import type { KanaType, KanjiLevel } from "../types";
+import { Hard, HIRAGANA, KATAKANA, N1, N2, N3, N4, N5 } from "../constants";
+import type { KanaType } from "../types/Kana";
+import type { KanjiLevel } from "../types/Kanji";
 import { useI18n } from "../i18n";
 import LanguageSelector from "./LanguageSelector";
 
@@ -15,18 +17,23 @@ type SetupCardProps = {
 
 type Section = "kana" | "kanji";
 
-const KANJI_LEVEL_OPTIONS: Array<{ level: KanjiLevel; label: string; descriptionKey: string }> = [
-  { level: "N5", label: "N5", descriptionKey: "level.beginner" },
-  { level: "N4", label: "N4", descriptionKey: "level.basic" },
-  { level: "N3", label: "N3", descriptionKey: "level.intermediate" },
-  { level: "N2", label: "N2", descriptionKey: "level.upperIntermediate" },
-  { level: "N1", label: "N1", descriptionKey: "level.advanced" },
-  { level: "Hard", label: "🤯", descriptionKey: "level.hard" },
+const KANA_OPTIONS: Array<{ script: KanaType; count: number }> = [
+  { script: "hiragana", count: HIRAGANA.length },
+  { script: "katakana", count: KATAKANA.length },
 ];
 
-export default function SetupCard({ selectedScripts, selectedKanjiLevels, canStart, onToggleScript, onToggleKanjiLevel, onStart }: SetupCardProps) {
+const KANJI_LEVEL_OPTIONS: Array<{ level: KanjiLevel; label: string; descriptionKey: string; count: number }> = [
+  { level: "N5", label: "N5", descriptionKey: "level.beginner", count: N5.length },
+  { level: "N4", label: "N4", descriptionKey: "level.basic", count: N4.length },
+  { level: "N3", label: "N3", descriptionKey: "level.intermediate", count: N3.length },
+  { level: "N2", label: "N2", descriptionKey: "level.upperIntermediate", count: N2.length },
+  { level: "N1", label: "N1", descriptionKey: "level.advanced", count: N1.length },
+  { level: "Hard", label: "🤯", descriptionKey: "level.hard", count: Hard.length },
+];
+
+export default function SetupCard({ selectedScripts, selectedKanjiLevels, canStart, onToggleScript, onToggleKanjiLevel, onStart }: Readonly<SetupCardProps>) {
   const { t } = useI18n();
-  const [openSection, setOpenSection] = useState<Section | null>("kana");
+  const [openSection, setOpenSection] = useState<Section | null>(null);
 
   const toggleSection = (section: Section) => {
     setOpenSection((current) => current === section ? null : section);
@@ -53,13 +60,14 @@ export default function SetupCard({ selectedScripts, selectedKanjiLevels, canSta
           </button>
           {openSection === "kana" ? (
             <div className="script-grid">
-              {(["hiragana", "katakana"] as KanaType[]).map((script) => (
+              {KANA_OPTIONS.map(({ script, count }) => (
                 <label className="script-toggle" key={script}>
                   <input type="checkbox" checked={selectedScripts[script]} onChange={() => onToggleScript(script)} />
-                  <span>
+                  <span className="script-toggle-copy">
                     <strong>{t(`script.${script}`)}</strong>
                     <em>{t(`script.${script}Description`)}</em>
                   </span>
+                  <span className="script-toggle-count">{count}</span>
                 </label>
               ))}
             </div>
@@ -80,7 +88,11 @@ export default function SetupCard({ selectedScripts, selectedKanjiLevels, canSta
               {KANJI_LEVEL_OPTIONS.map((option) => (
                 <label className="script-toggle" key={option.level}>
                   <input type="checkbox" checked={selectedKanjiLevels[option.level]} onChange={() => onToggleKanjiLevel(option.level)} />
-                  <span><strong>{option.label}</strong><em>{t(option.descriptionKey)}</em></span>
+                  <span className="script-toggle-copy">
+                    <strong>{option.label}</strong>
+                    <em>{t(option.descriptionKey)}</em>
+                  </span>
+                  <span className="script-toggle-count">{option.count}</span>
                 </label>
               ))}
             </div>

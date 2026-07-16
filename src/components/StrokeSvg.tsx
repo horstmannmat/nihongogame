@@ -15,7 +15,7 @@ function restartStrokeAnimations(container: HTMLDivElement) {
   });
 }
 
-export default function StrokeSvg({ svgText, className }: StrokeSvgProps) {
+export default function StrokeSvg({ svgText, className }: Readonly<StrokeSvgProps>) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
