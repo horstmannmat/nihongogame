@@ -1,6 +1,6 @@
 import type { Kana } from '../types/Kana';
 
-const HIRAGANA: Kana[] = [
+const HIRAGANA:  Readonly<Kana[]> = [
     // Vowels
     { romaji: 'a', type: 'hiragana', kana: 'あ' },
     { romaji: 'i', type: 'hiragana', kana: 'い' },
