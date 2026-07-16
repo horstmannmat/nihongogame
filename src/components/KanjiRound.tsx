@@ -45,22 +45,19 @@ function splitKanjiGlyph(glyph: string) {
   return Array.from(glyph);
 }
 
-function getSvgUrl(part: string, folder: string, publicBase: string) {
-  return `${publicBase}/kanjistrokes-dist/${folder}/${part.codePointAt(0)}.svg`;
+function getSvgUrl(part: string, publicBase: string) {
+  return `${publicBase}/kanjistrokes-dist/${part.codePointAt(0)}.svg`;
 }
 
-async function fetchKanjiSvg(part: string, level: string, publicBase: string, signal: AbortSignal) {
-  let response = await fetch(getSvgUrl(part, level, publicBase), { signal });
-  if (!response.ok && level !== "undefined") {
-    response = await fetch(getSvgUrl(part, "undefined", publicBase), { signal });
-  }
+async function fetchKanjiSvg(part: string, publicBase: string, signal: AbortSignal) {
+  const response = await fetch(getSvgUrl(part, publicBase), { signal });
   if (!response.ok) throw new Error("SVG not found");
   return response.text();
 }
 
 async function loadPreparedSvgs(kanji: Kanji, publicBase: string, signal: AbortSignal) {
   const parts = splitKanjiGlyph(kanji.kanji);
-  const svgs = await Promise.all(parts.map((part) => fetchKanjiSvg(part, kanji.level, publicBase, signal)));
+  const svgs = await Promise.all(parts.map((part) => fetchKanjiSvg(part, publicBase, signal)));
   return svgs.map((svg) => scaleKanjiSvgToDuration(svg, REVEAL_SEC_PER_GLYPH));
 }
 
