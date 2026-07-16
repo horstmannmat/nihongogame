@@ -17,6 +17,17 @@ type SetupCardProps = {
 
 type Section = "kana" | "kanji";
 
+/** Renders `**bold**` segments from i18n strings as <strong>. */
+function renderInlineBold(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part) => {
+    const match = /^\*\*([^*]+)\*\*$/.exec(part);
+    if (match) {
+      return <strong key={`bold:${match[1]}`}>{match[1]}</strong>;
+    }
+    return <span key={`text:${part}`}>{part}</span>;
+  });
+}
+
 const KANA_OPTIONS: Array<{ script: KanaType; count: number }> = [
   { script: "hiragana", count: HIRAGANA.length },
   { script: "katakana", count: KATAKANA.length },
@@ -46,7 +57,10 @@ export default function SetupCard({ selectedScripts, selectedKanjiLevels, canSta
         <LanguageSelector />
       </div>
       <h1>{t("setup.title")}</h1>
-      <p className="setup-copy">{t("setup.copy")}</p>
+      <div className="setup-copy">
+        <p>{renderInlineBold(t("setup.copy"))}</p>
+        <p>{renderInlineBold(t("setup.copy2"))}</p>
+      </div>
       <div className="selection-grid">
         <div className={`selection-group ${openSection === "kana" ? "is-open" : ""}`}>
           <button
@@ -99,7 +113,9 @@ export default function SetupCard({ selectedScripts, selectedKanjiLevels, canSta
           ) : null}
         </div>
       </div>
-      <button className="primary-button" type="button" onClick={onStart} disabled={!canStart}>{t("action.start")}</button>
+      <div className="setup-actions">
+        <button className="primary-button" type="button" onClick={onStart} disabled={!canStart}>{t("action.start")}</button>
+      </div>
     </section>
   );
 }
