@@ -1,0 +1,109 @@
+[
+  {
+    "kanji": "薔",
+    "strokes": 16,
+    "meaning": [
+      "water pepper"
+    ],
+    "kunyomi": [
+      "みずたで"
+    ],
+    "onyomi": [
+      "バ",
+      "ショウ",
+      "ショク",
+      "ソウ"
+    ],
+    "level": "Hard"
+  },
+  {
+    "kanji": "謄",
+    "strokes": 17,
+    "meaning": [
+      "copy",
+      "transcript",
+      "mimeograph"
+    ],
+    "kunyomi": [
+      "とうほん"
+    ],
+    "onyomi": [
+      "トウ"
+    ],
+    "level": "Hard"
+  },
+  {
+    "kanji": "遊戯",
+    "strokes": 27,
+    "meaning": [
+      "yuugi"
+    ],
+    "kunyomi": [],
+    "onyomi": [
+      "ユーギ"
+    ],
+    "level": "Hard"
+  },
+  {
+    "kanji": "禁錮",
+    "strokes": 29,
+    "meaning": [
+      "imprisonment",
+      "confinement"
+    ],
+    "kunyomi": [],
+    "onyomi": [
+      "キンコ"
+    ],
+    "level": "Hard"
+  },
+  {
+    "kanji": "鋳型",
+    "strokes": 24,
+    "meaning": [
+      "mold",
+      "template"
+    ],
+    "kunyomi": [],
+    "onyomi": [
+      "イガタ"
+    ],
+    "level": "Hard"
+  },
+  {
+    "kanji": "蓋",
+    "strokes": 13,
+    "meaning": [
+      "lid",
+      "cover"
+    ],
+    "kunyomi": [
+      "ふた",
+      "けだ.し",
+      "おお.う",
+      "かさ",
+      "かこう"
+    ],
+    "onyomi": [
+      "ガイ",
+      "カイ",
+      " コウ"
+    ],
+    "level": "Hard"
+  },
+  {
+    "kanji": "朽",
+    "strokes": 6,
+    "meaning": [
+      "decay",
+      "rot"
+    ],
+    "kunyomi": [
+      "く.ちる"
+    ],
+    "onyomi": [
+      "キュウ"
+    ],
+    "level": "Hard"
+  }
+]

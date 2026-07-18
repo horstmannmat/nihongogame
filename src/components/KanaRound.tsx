@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useI18n } from "../i18n";
 import type { Kana } from "../types/Kana";
+import CountdownTimer from "./CountdownTimer";
 import StrokeSvg from "./StrokeSvg";
 
 type KanaRoundProps = {
@@ -39,23 +40,16 @@ function getRevealDurationMs(kana: Kana) {
 
 function getSvgUrls(kana: Kana, publicBase: string) {
   return splitKanaGlyph(kana.kana).map(
-    (part) => `${publicBase}/kanastrokes-dist/${kana.type}/${encodeURIComponent(part)}.svg`,
+    (part) => `${publicBase}/kana/kanastrokes-dist/${kana.type}/${encodeURIComponent(part)}.svg`,
   );
 }
 
 export default function KanaRound({ kana, publicBase, progress, onComplete }: Readonly<KanaRoundProps>) {
   const { t } = useI18n();
   const kanaParts = splitKanaGlyph(kana.kana);
-  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  const [isRevealed, setIsRevealed] = useState(false);
   const [revealSvgs, setRevealSvgs] = useState<string[]>([]);
   const [showSecondaryStroke, setShowSecondaryStroke] = useState(kanaParts.length < 2);
-  const isRevealed = countdown === 0;
-
-  useEffect(() => {
-    if (isRevealed) return;
-    const timeoutId = window.setTimeout(() => setCountdown((value) => value - 1), 1000);
-    return () => window.clearTimeout(timeoutId);
-  }, [countdown, isRevealed]);
 
   useEffect(() => {
     if (!isRevealed) {
@@ -129,7 +123,7 @@ export default function KanaRound({ kana, publicBase, progress, onComplete }: Re
             )}
           </div>
         ) : (
-          <div className="stage-timer"><span className="timer-title">{t("timer.revealIn")}</span><span className="timer-value">{countdown}</span></div>
+          <CountdownTimer seconds={COUNTDOWN_SECONDS} onComplete={() => setIsRevealed(true)} />
         )}
       </div>
     </section>

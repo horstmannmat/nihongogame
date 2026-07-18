@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-export type Language = 'en' | 'ja' | 'vi' | 'ne' | 'haw' | 'eu' | 'kk' | 'nl' | 'de' | 'pt-BR';
+export type Language = 'en' | 'ja' | 'vi' | 'ne' | 'haw' | 'eu' | 'kk' | 'nl' | 'de' | 'pt-BR' | 'es';
 
 const DEFAULT_LANGUAGE: Language = 'en';
 const LANGUAGE_BY_BASE_CODE: Record<string, Language> = {
@@ -14,6 +14,7 @@ const LANGUAGE_BY_BASE_CODE: Record<string, Language> = {
   nl: 'nl',
   de: 'de',
   pt: 'pt-BR',
+  es: 'es',
 };
 
 function detectBrowserLanguage(): Language {

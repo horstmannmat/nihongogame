@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { KanaRound, KanjiRound, LanguageSelector, SetupCard } from "./components";
-import { Hard, HIRAGANA, KATAKANA, N1, N2, N3, N4, N5 } from "./constants";
+import { loadGameData, type GameData } from "./data";
 import { useI18n } from "./i18n";
 import type { Kana, KanaType } from "./types/Kana";
 import type { Kanji, KanjiLevel } from "./types/Kanji";
@@ -38,14 +38,38 @@ export default function Game() {
   const [remainingRounds, setRemainingRounds] = useState<Round[]>([]);
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [totalRounds, setTotalRounds] = useState(0);
+  const [gameData, setGameData] = useState<GameData | null>(null);
+  const [dataLoadFailed, setDataLoadFailed] = useState(false);
   const remainingRoundsRef = useRef(remainingRounds);
   remainingRoundsRef.current = remainingRounds;
-  const allKanas = useMemo(() => [...HIRAGANA, ...KATAKANA], []);
-  const allKanjis = useMemo(() => [...N5, ...N4, ...N3, ...N2, ...N1, ...Hard], []);
+  const allKanas = useMemo(
+    () => gameData ? [...gameData.kana.hiragana, ...gameData.kana.katakana] : [],
+    [gameData],
+  );
+  const allKanjis = useMemo(
+    () => gameData
+      ? [...gameData.kanji.N5, ...gameData.kanji.N4, ...gameData.kanji.N3, ...gameData.kanji.N2, ...gameData.kanji.N1, ...gameData.kanji.Hard]
+      : [],
+    [gameData],
+  );
   const availableKanas = useMemo(() => allKanas.filter((kana) => selectedScripts[kana.type]), [allKanas, selectedScripts]);
   const availableKanjis = useMemo(() => allKanjis.filter((kanji) => selectedKanjiLevels[kanji.level]), [allKanjis, selectedKanjiLevels]);
   const availableRounds = useMemo<Round[]>(() => [...availableKanas, ...availableKanjis], [availableKanas, availableKanjis]);
   const canStart = phase === "setup" && availableRounds.length > 0;
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    loadGameData(NIHONGO_PUBLIC_BASE, controller.signal)
+      .then(setGameData)
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setDataLoadFailed(true);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
 
   const advanceRound = useCallback(() => {
     const remaining = remainingRoundsRef.current;
@@ -82,6 +106,16 @@ export default function Game() {
     setCurrentRound(null);
     setTotalRounds(0);
     setPhase("setup");
+  }
+
+  if (!gameData) {
+    return dataLoadFailed ? (
+      <main className="app-shell">
+        <section className="setup-card">
+          <p className="setup-copy">{t("data.loadError")}</p>
+        </section>
+      </main>
+    ) : null;
   }
 
   if (phase === "finished") {
@@ -133,6 +167,18 @@ export default function Game() {
         <SetupCard
           selectedScripts={selectedScripts}
           selectedKanjiLevels={selectedKanjiLevels}
+          kanaCounts={{
+            hiragana: gameData.kana.hiragana.length,
+            katakana: gameData.kana.katakana.length,
+          }}
+          kanjiCounts={{
+            N5: gameData.kanji.N5.length,
+            N4: gameData.kanji.N4.length,
+            N3: gameData.kanji.N3.length,
+            N2: gameData.kanji.N2.length,
+            N1: gameData.kanji.N1.length,
+            Hard: gameData.kanji.Hard.length,
+          }}
           canStart={canStart}
           onToggleScript={toggleScript}
           onToggleKanjiLevel={toggleKanjiLevel}

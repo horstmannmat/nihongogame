@@ -1,6 +1,6 @@
 import { useI18n, type Language } from '../i18n';
 
-const LANGUAGES: Language[] = ['ja', 'vi', 'ne', 'haw', 'eu', 'kk', 'nl', 'de', 'pt-BR', 'en'];
+const LANGUAGES: Language[] = ['ja', 'vi', 'ne', 'haw', 'eu', 'kk', 'nl', 'de', 'pt-BR', 'es', 'en'];
 
 export default function LanguageSelector() {
   const { language, setLanguage, t } = useI18n();

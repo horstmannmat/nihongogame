@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { Kanji } from "../types/Kanji";
 import { useI18n } from "../i18n";
+import CountdownTimer from "./CountdownTimer";
 import StrokeSvg from "./StrokeSvg";
 
 type KanjiRoundProps = {
@@ -45,8 +46,16 @@ function splitKanjiGlyph(glyph: string) {
   return Array.from(glyph);
 }
 
+function renderReadings(readings: readonly string[]) {
+  return readings.map((reading, index) => (
+    <span key={`${reading}-${index}`} className="kanji-reading-item">
+      {reading}{index < readings.length - 1 ? "," : ""}
+    </span>
+  ));
+}
+
 function getSvgUrl(part: string, publicBase: string) {
-  return `${publicBase}/kanjistrokes-dist/${part.codePointAt(0)}.svg`;
+  return `${publicBase}/kanji/kanjistrokes-dist/${part.codePointAt(0)}.svg`;
 }
 
 async function fetchKanjiSvg(part: string, publicBase: string, signal: AbortSignal) {
@@ -90,17 +99,10 @@ function KanjiGlyph({ svgText, isPlaying }: Readonly<KanjiGlyphProps>) {
 export default function KanjiRound({ kanji, publicBase, progress, onComplete }: Readonly<KanjiRoundProps>) {
   const { t } = useI18n();
   const kanjiParts = splitKanjiGlyph(kanji.kanji);
-  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  const [isRevealed, setIsRevealed] = useState(false);
   const [revealSvgs, setRevealSvgs] = useState<string[]>([]);
   // Latest glyph allowed to animate; earlier glyphs stay drawn, later ones stay grey.
   const [activeStrokeIndex, setActiveStrokeIndex] = useState(0);
-  const isRevealed = countdown === 0;
-
-  useEffect(() => {
-    if (isRevealed) return;
-    const timeoutId = window.setTimeout(() => setCountdown((value) => value - 1), 1000);
-    return () => window.clearTimeout(timeoutId);
-  }, [countdown, isRevealed]);
 
   useEffect(() => {
     if (!isRevealed) {
@@ -146,8 +148,24 @@ export default function KanjiRound({ kanji, publicBase, progress, onComplete }: 
         {progress.current}/{progress.total}
       </div>
       <div className="round-copy">
-        <div className="romaji">{kanji.hiragana}</div>
-        <div className="script-label">{kanji.meaning} · {kanji.level}</div>
+        {(kanji.kunyomi.length > 0 || kanji.onyomi.length > 0) && (
+          <div className="kanji-readings">
+            {kanji.kunyomi.length > 0 && (
+              <div>
+                <div className="kanji-reading-label">{t("reading.kunyomi")}:</div>
+                <div className="kanji-reading-value">{renderReadings(kanji.kunyomi)}</div>
+              </div>
+            )}
+            {kanji.onyomi.length > 0 && (
+              <div>
+                <div className="kanji-reading-label">{t("reading.onyomi")}:</div>
+                <div className="kanji-reading-value">{renderReadings(kanji.onyomi)}</div>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="script-label">{kanji.meaning.join(", ")}</div>
+        <div className="script-label">{kanji.level}</div>
       </div>
       <div className="stroke-stage">
         {isRevealed ? (
@@ -167,10 +185,7 @@ export default function KanjiRound({ kanji, publicBase, progress, onComplete }: 
             })}
           </div>
         ) : (
-          <div className="stage-timer">
-            <span className="timer-title">{t("timer.revealIn")}</span>
-            <span className="timer-value">{countdown}</span>
-          </div>
+          <CountdownTimer seconds={COUNTDOWN_SECONDS} onComplete={() => setIsRevealed(true)} />
         )}
       </div>
     </section>
